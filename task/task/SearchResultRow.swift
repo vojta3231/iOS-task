@@ -37,11 +37,7 @@ struct SearchResultRow: View {
                 }
             }
             
-            Spacer()
-            
-            Image(systemName: "chevron.right")
-                .foregroundColor(.secondary)
         }
-        .padding(.vertical, 8)
+
     }
 }

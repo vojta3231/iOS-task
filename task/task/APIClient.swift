@@ -4,6 +4,7 @@ import Dependencies
 enum EntityType: String, CaseIterable {
     case all = "All"
     case participants = "Teams & Players"
+    case venues = "Venues"
 }
 
 protocol APIClientProtocol {
@@ -74,9 +75,14 @@ struct APIClient: APIClientProtocol, DependencyKey {
                 allResults.append(contentsOf: teams)
             }
             
-            // Finally try players
+            // Then try players
             if let players = try? await searchPlayers(query: query) {
                 allResults.append(contentsOf: players)
+            }
+            
+            // Finally try venues
+            if let venues = try? await searchVenues(query: query) {
+                allResults.append(contentsOf: venues)
             }
             
             if allResults.isEmpty {
@@ -103,6 +109,13 @@ struct APIClient: APIClientProtocol, DependencyKey {
             }
             
             return results
+            
+        case .venues:
+            let venues = try await searchVenues(query: query)
+            if venues.isEmpty {
+                throw SearchError.noResults
+            }
+            return venues
         }
     }
     
@@ -127,6 +140,18 @@ struct APIClient: APIClientProtocol, DependencyKey {
         let response: TeamsResponse = try await fetch(url: url)
         let results = response.teams?.compactMap { PlayerSearchData(from: $0) } ?? []
         print("Found \(results.count) teams")
+        return results
+    }
+    
+    private func searchVenues(query: String) async throws -> [PlayerSearchData] {
+        let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        guard let url = URL(string: "\(baseURL)/searchvenues.php?t=\(encodedQuery)") else {
+            throw SearchError.invalidURL
+        }
+        
+        let response: VenuesResponse = try await fetch(url: url)
+        let results = response.venues?.compactMap { PlayerSearchData(from: $0) } ?? []
+        print("Found \(results.count) venues")
         return results
     }
 }
@@ -164,40 +189,14 @@ struct PlayerDTO: Decodable {
     let strTeam: String?
 }
 
-//struct PlayerSearchData: Identifiable, Equatable {
-//    let id: String
-//    let name: String
-//    let imageURL: String?
-//    let country: String
-//    let sport: String
-//    let subtitle: String?
-//
-//    init(id: String, name: String, imageURL: String?, country: String, sport: String, subtitle: String? = nil) {
-//        self.id = id
-//        self.name = name
-//        self.imageURL = imageURL
-//        self.country = country
-//        self.sport = sport
-//        self.subtitle = subtitle
-//    }
-//
-//    init?(from team: TeamDTO) {
-//        guard let id = team.idTeam, let name = team.strTeam else { return nil }
-//        self.id = id
-//        self.name = name
-//        self.imageURL = team.strTeamBadge
-//        self.country = team.strCountry ?? "Unknown"
-//        self.sport = team.strSport ?? "Soccer"
-//        self.subtitle = team.strLeague
-//    }
-//
-//    init?(from player: PlayerDTO) {
-//        guard let id = player.idPlayer, let name = player.strPlayer else { return nil }
-//        self.id = id
-//        self.name = name
-//        self.imageURL = player.strThumb
-//        self.country = player.strNationality ?? "Unknown"
-//        self.sport = player.strSport ?? "Soccer"
-//        self.subtitle = player.strTeam
-//    }
-//}
+struct VenuesResponse: Decodable {
+    let venues: [VenueDTO]?
+}
+
+struct VenueDTO: Decodable {
+    let idVenue: String?
+    let strVenue: String?
+    let strVenueThumb: String?
+    let strCountry: String?
+    let strLocation: String?
+}
