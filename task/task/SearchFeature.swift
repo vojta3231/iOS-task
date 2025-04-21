@@ -8,7 +8,7 @@ struct SearchReducer: Reducer {
         var selectedType: EntityType = .all
         var isLoading: Bool = false
         var results: [PlayerSearchData] = []
-        var errorMessage: String?
+        var error: SearchError?
         var hasSearched: Bool = false
     }
     
@@ -17,8 +17,7 @@ struct SearchReducer: Reducer {
         case searchButtonTapped
         case searchResponse(Result<[PlayerSearchData], SearchError>)
         case selectType(EntityType)
-        case dismissAlert
-        case clearResults
+        case dismissError
     }
     
     @Dependency(SearchService.self)
@@ -33,19 +32,23 @@ struct SearchReducer: Reducer {
             
             case .searchButtonTapped:
                 guard !state.searchText.isEmpty else {
-                    state.errorMessage = "Please enter a search term"
+                    state.error = .emptyQuery
                     return .none
                 }
                 
                 state.isLoading = true
-                state.errorMessage = nil
+                state.error = nil
                 state.results = []
                 state.hasSearched = true
                 
                 return .run { [state] send in
                     do {
                         let entities = try await searchService.searchEntities(query: state.searchText, entityType: state.selectedType)
-                        await send(.searchResponse(.success(entities)))
+                        if entities.isEmpty {
+                            await send(.searchResponse(.failure(.noResults)))
+                        } else {
+                            await send(.searchResponse(.success(entities)))
+                        }
                     } catch let error as SearchError {
                         await send(.searchResponse(.failure(error)))
                     } catch {
@@ -56,22 +59,17 @@ struct SearchReducer: Reducer {
             case let .searchResponse(.success(results)):
                 state.isLoading = false
                 state.results = results
-                if results.isEmpty {
-                    state.errorMessage = "No results found for '\(state.searchText)'"
-                }
                 return .none
                 
             case let .searchResponse(.failure(error)):
                 state.isLoading = false
-                state.errorMessage = error.localizedDescription
+                state.error = error
                 return .none
                 
             case let .selectType(type):
                 if type != state.selectedType {
                     state.selectedType = type
-                    state.results = []
-                    state.errorMessage = nil
-                    state.hasSearched = false
+                    state.resetSearchState()
                     
                     // If there's text in the search field, automatically search with new type
                     if !state.searchText.isEmpty {
@@ -80,17 +78,19 @@ struct SearchReducer: Reducer {
                 }
                 return .none
                 
-            case .dismissAlert:
-                state.errorMessage = nil
-                return .none
-                
-            case .clearResults:
-                state.results = []
-                state.errorMessage = nil
-                state.hasSearched = false
+            case .dismissError:
+                state.error = nil
                 return .none
             }
         }
+    }
+}
+
+extension SearchReducer.State {
+    mutating func resetSearchState() {
+        results = []
+        error = nil
+        hasSearched = false
     }
 }
 

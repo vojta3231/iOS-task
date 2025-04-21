@@ -67,41 +67,26 @@ struct APIClient: APIClientProtocol, DependencyKey {
         print("Searching for '\(query)' in category: \(entityType.rawValue)")
         
         switch entityType {
-        case .all:
-            var allResults: [PlayerSearchData] = []
-            
-            // First try teams
-            if let teams = try? await searchTeams(query: query) {
-                allResults.append(contentsOf: teams)
-            }
-            
-            // Then try players
-            if let players = try? await searchPlayers(query: query) {
-                allResults.append(contentsOf: players)
-            }
-            
-            // Finally try venues
-            if let venues = try? await searchVenues(query: query) {
-                allResults.append(contentsOf: venues)
-            }
-            
-            if allResults.isEmpty {
-                throw SearchError.noResults
-            }
-            
-            return allResults
-            
-        case .participants:
+        case .all, .participants:
             var results: [PlayerSearchData] = []
             
-            // Search for teams
-            if let teams = try? await searchTeams(query: query) {
+            // Search for teams and players
+            async let teamsSearch = searchTeams(query: query)
+            async let playersSearch = searchPlayers(query: query)
+            
+            // Wait for both searches to complete
+            if let teams = try? await teamsSearch {
                 results.append(contentsOf: teams)
             }
-            
-            // Search for players
-            if let players = try? await searchPlayers(query: query) {
+            if let players = try? await playersSearch {
                 results.append(contentsOf: players)
+            }
+            
+            // For .all, also search venues
+            if case .all = entityType {
+                if let venues = try? await searchVenues(query: query) {
+                    results.append(contentsOf: venues)
+                }
             }
             
             if results.isEmpty {
