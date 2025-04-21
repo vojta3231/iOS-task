@@ -1,10 +1,12 @@
 import SwiftUI
 
+// View representing a single search result row (Team, Player, or Venue)
 struct SearchResultRow: View {
     let entity: PlayerSearchData
     
     var body: some View {
         HStack(spacing: 12) {
+            
             // Entity image
             if let imageURL = entity.imageURL, let url = URL(string: imageURL) {
                 AsyncImage(url: url) { image in

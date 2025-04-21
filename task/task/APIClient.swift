@@ -7,10 +7,12 @@ enum EntityType: String, CaseIterable {
     case venues = "Venues"
 }
 
+// Useful for mocking
 protocol APIClientProtocol {
     func search(query: String, entityType: EntityType) async throws -> [PlayerSearchData]
 }
 
+// API client for interacting with TheSportsDB API
 struct APIClient: APIClientProtocol, DependencyKey {
     static var liveValue: APIClient { APIClient() }
     
@@ -21,6 +23,7 @@ struct APIClient: APIClientProtocol, DependencyKey {
         self.session = session
     }
     
+    // Fetch utility for all API calls
     private func fetch<T: Decodable>(url: URL) async throws -> T {
         print("Fetching URL: \(url.absoluteString)")
         
@@ -104,6 +107,7 @@ struct APIClient: APIClientProtocol, DependencyKey {
         }
     }
     
+    // Individual search functions for API
     private func searchPlayers(query: String) async throws -> [PlayerSearchData] {
         let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
         guard let url = URL(string: "\(baseURL)/searchplayers.php?p=\(encodedQuery)") else {
@@ -148,6 +152,7 @@ extension DependencyValues {
     }
 }
 
+// Data transfer objects for responses
 struct TeamsResponse: Decodable {
     let teams: [TeamDTO]?
 }

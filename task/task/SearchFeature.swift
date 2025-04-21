@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import SwiftUI
 
+// Reducer managing the search and results state
 @Reducer
 struct SearchReducer: Reducer {
     struct State: Equatable {

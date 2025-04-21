@@ -1,7 +1,106 @@
 import SwiftUI
 import ComposableArchitecture
 
-// Hlavní pohled pro zobrazení výsledků vyhledávání
+// Search bar component
+struct SearchBar: View {
+    let searchText: String
+    let onSearchTextChanged: (String) -> Void
+    let onSearchButtonTapped: () -> Void
+    
+    var body: some View {
+        HStack {
+            TextField("Search...", text: Binding(
+                get: { searchText },
+                set: { onSearchTextChanged($0) }
+            ))
+            .textFieldStyle(RoundedBorderTextFieldStyle())
+            .autocapitalization(.none)
+            
+            Button(action: onSearchButtonTapped) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.white)
+                    .padding(8)
+                    .background(Color.blue)
+                    .cornerRadius(8)
+            }
+        }
+        .padding(.horizontal)
+    }
+}
+
+// Entity type picker component
+struct EntityTypePicker: View {
+    let selectedType: EntityType
+    let onTypeSelected: (EntityType) -> Void
+    
+    var body: some View {
+        Picker("Filter", selection: Binding(
+            get: { selectedType },
+            set: { onTypeSelected($0) }
+        )) {
+            ForEach(EntityType.allCases, id: \.self) { type in
+                Text(type.rawValue).tag(type)
+            }
+        }
+        .pickerStyle(SegmentedPickerStyle())
+        .padding(.horizontal)
+    }
+}
+
+// Loading view component
+struct LoadingView: View {
+    var body: some View {
+        VStack {
+            ProgressView()
+                .scaleEffect(1.5)
+            Text("Searching...")
+                .foregroundColor(.secondary)
+                .padding(.top, 8)
+        }
+        .frame(maxHeight: .infinity)
+    }
+}
+
+// Empty results view component
+struct EmptyResultsView: View {
+    var body: some View {
+        VStack {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 50))
+                .foregroundColor(.secondary)
+            Text("No results found")
+                .foregroundColor(.secondary)
+                .padding(.top, 8)
+        }
+        .frame(maxHeight: .infinity)
+    }
+}
+
+// Results list component
+struct ResultsListView: View {
+    let results: [PlayerSearchData]
+    
+    var body: some View {
+        List {
+            ForEach(groupedResults(results: results).sorted(by: { $0.key < $1.key }), id: \.key) { sport, entities in
+                Section(header: Text(sport).font(.headline)) {
+                    ForEach(entities, id: \.id) { entity in
+                        NavigationLink(destination: EntityDetailView(entity: entity)) {
+                            SearchResultRow(entity: entity)
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+    }
+    
+    private func groupedResults(results: [PlayerSearchData]) -> [String: [PlayerSearchData]] {
+        Dictionary(grouping: results, by: { $0.sport })
+    }
+}
+
+// Main view to display the search page and results
 struct SearchResultsView: View {
     let store: StoreOf<SearchReducer>
     
@@ -9,92 +108,41 @@ struct SearchResultsView: View {
         WithViewStore(self.store, observe: { $0 }) { viewStore in
             NavigationView {
                 VStack(spacing: 16) {
-                    // Search field with search button
-                    HStack {
-                        TextField("Search...", text: viewStore.binding(
-                            get: \.searchText,
-                            send: SearchReducer.Action.searchTextChanged
-                        ))
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .autocapitalization(.none)
-                        
-                        Button(action: {
-                            viewStore.send(.searchButtonTapped)
-                        }) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.white)
-                                .padding(8)
-                                .background(Color.blue)
-                                .cornerRadius(8)
-                        }
-                    }
-                    .padding(.horizontal)
+                    SearchBar(
+                        searchText: viewStore.searchText,
+                        onSearchTextChanged: { viewStore.send(.searchTextChanged($0)) },
+                        onSearchButtonTapped: { viewStore.send(.searchButtonTapped) }
+                    )
                     
-                    // Entity type picker
-                    Picker("Filter", selection: viewStore.binding(
-                        get: \.selectedType,
-                        send: SearchReducer.Action.selectType
-                    )) {
-                        ForEach(EntityType.allCases, id: \.self) { type in
-                            Text(type.rawValue).tag(type)
-                        }
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                    .padding(.horizontal)
+                    EntityTypePicker(
+                        selectedType: viewStore.selectedType,
+                        onTypeSelected: { viewStore.send(.selectType($0)) }
+                    )
                     
-                    // Results or loading state
                     if viewStore.isLoading {
-                        VStack {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                            Text("Searching...")
-                                .foregroundColor(.secondary)
-                                .padding(.top, 8)
-                        }
-                        .frame(maxHeight: .infinity)
+                        LoadingView()
                     } else if viewStore.results.isEmpty {
-                        VStack {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 50))
-                                .foregroundColor(.secondary)
-                            Text("No results found")
-                                .foregroundColor(.secondary)
-                                .padding(.top, 8)
-                        }
-                        .frame(maxHeight: .infinity)
+                        EmptyResultsView()
                     } else {
-                        List {
-                            ForEach(groupedResults(results: viewStore.results).sorted(by: { $0.key < $1.key }), id: \.key) { sport, entities in
-                                Section(header: Text(sport).font(.headline)) {
-                                    ForEach(entities, id: \.id) { entity in
-                                        NavigationLink(destination: EntityDetailView(entity: entity)) {
-                                            SearchResultRow(entity: entity)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .listStyle(InsetGroupedListStyle())
+                        ResultsListView(results: viewStore.results)
                     }
                 }
                 .navigationTitle("Sports Search")
                 .alert(
                     "Error",
-                    isPresented: .constant(viewStore.errorMessage != nil),
+                    isPresented: .constant(viewStore.error != nil),
                     actions: {
                         Button("OK") {
-                            viewStore.send(.dismissAlert)
+                            viewStore.send(.dismissError)
                         }
                     },
                     message: {
-                        Text(viewStore.errorMessage ?? "")
+                        if let error = viewStore.error {
+                            Text(error.localizedDescription)
+                        }
                     }
                 )
             }
         }
-    }
-    
-    private func groupedResults(results: [PlayerSearchData]) -> [String: [PlayerSearchData]] {
-        Dictionary(grouping: results, by: { $0.sport })
     }
 }

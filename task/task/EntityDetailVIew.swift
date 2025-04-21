@@ -6,13 +6,14 @@ struct EntityDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Titulek s názvem entity
+                
+                // Entity name
                 Text(entity.name)
                     .font(.largeTitle)
                     .padding(.top)
                     .multilineTextAlignment(.center)
 
-                // Obrázek nebo placeholder
+                // Entity image/placeholder
                 if let imageUrl = entity.imageURL, let url = URL(string: imageUrl) {
                     AsyncImage(url: url) { image in
                         image.resizable()
@@ -30,7 +31,7 @@ struct EntityDetailView: View {
                         .frame(width: 200, height: 200)
                 }
 
-                // Informace o entitě
+                // Entity details
                 VStack(alignment: .leading, spacing: 10) {
                     if !entity.country.isEmpty && entity.country != "Unknown" {
                         InfoRow(title: "Země", value: entity.country)
